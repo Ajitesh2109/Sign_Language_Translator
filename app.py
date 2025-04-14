@@ -22,8 +22,8 @@ st.markdown("Using your trained YOLOv5 model (`best.pt`) with OpenCV + Streamlit
 @st.cache_resource
 def load_model():
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    model_path = str(Path('best.pt').resolve()) # Ensure we use the correct system path
-    model = DetectMultiBackend(model_path, device=device, dnn=True)  # Convert to string
+    model_path = str(Path('best.pt').resolve())
+    model = DetectMultiBackend(str(model_path), device=device, dnn=True) 
     return model, device
 
 model, device = load_model()
