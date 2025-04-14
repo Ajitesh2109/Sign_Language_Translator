@@ -1,49 +1,62 @@
+import os
 import cv2
 import numpy as np
-import torch
 import streamlit as st
 from PIL import Image
-import platform
-from pathlib import Path
+from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing.image import img_to_array
+from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
 
-# Set page config early
+# Set up the Streamlit page
 st.set_page_config(page_title="Sign Language Translator", layout="centered")
 
-# Add YOLOv5 path (alternative if package installation fails)
-try:
-    from models.common import DetectMultiBackend
-    from utils.general import non_max_suppression, scale_boxes
-    from utils.torch_utils import select_device
-    from utils.augmentations import letterbox
-except ImportError:
-    st.error("YOLOv5 dependencies not found. Please ensure yolov5 directory is included.")
-    st.stop()
-
+# Load your CNN model
 @st.cache_resource
-def load_model():
-    # Force CPU for deployment to avoid CUDA issues
-    device = 'cpu'
+def load_cnn_model():
     try:
-        model_path = Path('best.pt')
-        if not model_path.exists():
-            st.error("Model file 'best.pt' not found!")
-            st.stop()
-            
-        model = DetectMultiBackend(str(model_path), device=device, dnn=False)
-        model.eval()
-        return model, device
+        # Update this path to your model.h5 location
+        model_path = "C:\Users\ajite\Minor_Project\Sign_Language_Translator\model.h5"
+        model = load_model(model_path)
+        return model
     except Exception as e:
-        st.error(f"Error loading model: {str(e)}")
+        st.error(f"Model loading failed: {str(e)}")
         st.stop()
 
-model, device = load_model()
-names = model.names if hasattr(model, 'names') else [''] * model.nc
+# Load class names (replace with your actual class names)
+CLASS_NAMES = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 
+               'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
+
+model = load_cnn_model()
 
 st.title("🧠 Real-Time Sign Language Translator")
-st.markdown("Using your trained YOLOv5 model (`best.pt`) with OpenCV + Streamlit")
+st.markdown("Using your trained CNN model with OpenCV + Streamlit")
+
+# Add a sidebar for additional controls
+with st.sidebar:
+    st.header("Settings")
+    confidence_threshold = st.slider("Confidence Threshold", 0.0, 1.0, 0.7, 0.01)
+
+def preprocess_frame(frame):
+    """Preprocess frame for CNN prediction"""
+    # Resize and preprocess for your specific model
+    frame = cv2.resize(frame, (128, 128))
+    frame = img_to_array(frame)
+    frame = preprocess_input(frame)
+    frame = np.expand_dims(frame, axis=0)
+    return frame
+
+def predict_sign(frame):
+    """Make prediction on a single frame"""
+    processed_frame = preprocess_frame(frame)
+    predictions = model.predict(processed_frame)[0]
+    max_idx = np.argmax(predictions)
+    confidence = predictions[max_idx]
+    predicted_class = CLASS_NAMES[max_idx]
+    return predicted_class, confidence
 
 run = st.checkbox("Start Camera")
 FRAME_WINDOW = st.image([])
+result_placeholder = st.empty()
 
 if run:
     cap = cv2.VideoCapture(0)
@@ -52,40 +65,33 @@ if run:
         st.stop()
 
     try:
-        while run:  # Use the checkbox state to control the loop
+        while run:
             ret, frame = cap.read()
             if not ret:
                 st.warning("Webcam not detected")
                 break
-
-            # Preprocess
-            img = letterbox(frame, new_shape=640)[0]
-            img = img.transpose((2, 0, 1))[::-1]
-            img = np.ascontiguousarray(img)
-
-            # Inference
-            img_tensor = torch.from_numpy(img).to(device)
-            img_tensor = img_tensor.float() / 255.0
-            if img_tensor.ndimension() == 3:
-                img_tensor = img_tensor.unsqueeze(0)
-
-            with torch.no_grad():
-                pred = model(img_tensor)
-                pred = non_max_suppression(pred, conf_thres=0.25, iou_thres=0.45)[0]
-
-            # Post-process
-            if pred is not None and len(pred):
-                pred[:, :4] = scale_boxes(img_tensor.shape[2:], pred[:, :4], frame.shape).round()
-                for *xyxy, conf, cls in pred:
-                    label = f'{names[int(cls)]} {conf:.2f}'
-                    cv2.rectangle(frame, (int(xyxy[0]), int(xyxy[1])), 
-                                 (int(xyxy[2]), int(xyxy[3])), (0, 255, 0), 2)
-                    cv2.putText(frame, label, (int(xyxy[0]), int(xyxy[1]) - 10),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0,255,0), 2)
-
-            # Display
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            FRAME_WINDOW.image(frame)
+            
+            # Make a copy for display
+            display_frame = frame.copy()
+            
+            # Get prediction
+            predicted_class, confidence = predict_sign(frame)
+            
+            # Only show prediction if confidence is above threshold
+            if confidence > confidence_threshold:
+                # Add prediction to frame
+                label = f"{predicted_class} ({confidence:.2f})"
+                cv2.putText(display_frame, label, (10, 30),
+                           cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                
+                # Show prediction separately
+                result_placeholder.success(f"Predicted: {predicted_class} (Confidence: {confidence:.2f})")
+            else:
+                result_placeholder.warning("No confident prediction")
+            
+            # Display the frame
+            display_frame = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)
+            FRAME_WINDOW.image(display_frame)
 
     finally:
         cap.release()
