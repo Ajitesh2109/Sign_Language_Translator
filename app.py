@@ -32,8 +32,8 @@ def preprocess_frame(frame):
     
     # Convert to array and normalize
     frame = img_to_array(frame)
-    # frame = frame / 255.0  # For [0,1] range
-    frame = frame / 127.5 - 1.0  # For [-1,1] range
+    frame = frame / 255.0  # For [0,1] range
+    # frame = frame / 127.5 - 1.0  # For [-1,1] range
     
     # Add batch dimension
     return np.expand_dims(frame, axis=0)
