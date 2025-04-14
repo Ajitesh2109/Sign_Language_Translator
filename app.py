@@ -12,6 +12,7 @@ from models.common import DetectMultiBackend
 from utils.general import non_max_suppression, scale_boxes
 from utils.torch_utils import select_device
 from utils.augmentations import letterbox
+from pathlib import Path
 
 st.set_page_config(page_title="Sign Language Translator", layout="centered")
 
@@ -20,8 +21,9 @@ st.markdown("Using your trained YOLOv5 model (`best.pt`) with OpenCV + Streamlit
 
 @st.cache_resource
 def load_model():
-    device = select_device('0' if torch.cuda.is_available() else 'cpu')
-    model = DetectMultiBackend('best.pt', device=device, dnn=True)
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    model_path = str(Path('best.pt').resolve())  # Ensure we use the correct system path
+    model = DetectMultiBackend(model_path, device=device, dnn=True)  # Convert to string
     return model, device
 
 model, device = load_model()
