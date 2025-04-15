@@ -1,8 +1,22 @@
 import cv2
 import numpy as np
 import streamlit as st
-from tensorflow.keras.models import load_model
-from tensorflow.keras.preprocessing.image import img_to_array
+try:
+    # First try TensorFlow 2.x imports
+    from tensorflow.keras.models import load_model
+    from tensorflow.keras.preprocessing.image import img_to_array
+    print("Using TensorFlow backend")
+except ImportError:
+    try:
+        # Fallback to standalone Keras
+        from keras.models import load_model
+        from keras.preprocessing.image import img_to_array
+        print("Using standalone Keras")
+    except ImportError as e:
+        raise ImportError(
+            "Failed to import Keras. Please install TensorFlow:\n"
+            "pip install tensorflow"
+        ) from e
 from PIL import Image
 
 # Set up Streamlit
